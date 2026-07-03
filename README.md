@@ -1,4 +1,4 @@
-# AppScan360 · Fixer (v3)
+# AppScan360.ASoC · Fixer (v3)
 
 A single-file web application that connects **AppScan360** to a locally-running **Ollama** LLM
 for privacy-preserving AI vulnerability analysis, compliance mapping, and automated remediation.
@@ -34,8 +34,8 @@ Everything in the Fixer is stored in **browser `localStorage`** — it does **no
 
 | What | Where in the UI | What to enter |
 |---|---|---|
-| **AppScan360 URL** | Sidebar → AppScan360 MCP → Server URL | Your AppScan360 hostname, e.g. `https://as360aio.appscan.local/mcp` |
-| **API Key ID + Secret** | Sidebar → AppScan360 MCP | From AppScan360 → User Settings → API Management |
+| **AppScan360/ASoC URL** | Sidebar → AppScan360 MCP/ASoC MCP → Server URL | Your AppScan360 hostname, e.g. `https://as360aio.appscan.local/mcp` |
+| **API Key ID + Secret** | Sidebar → AppScan360 MCP | From AppScan360/ASoC → User Settings → API Management |
 | **Ollama model** | Sidebar → Ollama → Refresh Models | Select your downloaded model |
 | **GitHub / GitLab / Bitbucket / Azure DevOps token** | Sidebar → Source Control | Personal access token with repo read/write scope |
 | **Jira token** | Sidebar → Integrations → Jira | Base URL + email + API token |
@@ -294,49 +294,6 @@ When reporting a problem, collect:
 4. Contents of the **Event Log** tab (copy relevant lines)
 5. Browser console errors (F12 → Console)
 
----
-
-## What v3 adds over v2.1
-
-| Area | v2.1 | v3 |
-|---|---|---|
-| Look | Dark GitHub theme | Light main + dark sidebar, rounded cards, Spline Sans / JetBrains Mono |
-| Navigation | Flat tab strip with group labels | Grouped dropdown menus |
-| Sidebar | Flat config sections | Collapsible connection cards with live status dots |
-| Compliance scope | Issues tab only | **Current Issues / By Application / By Asset Group** selector |
-| Compliance export | None | **Export Report as HTML** (self-contained, printable) |
-| External systems | Git providers only | Jira, ServiceNow, SOAR, CI/CD Integrations cards |
-| Post-fix automation | Open PR/MR | Full MCP Chain orchestrator |
-
----
-
-## Version History
-
-### v3.0.0 (2026-07-01) — current
-
-- Full light-theme + dark-sidebar reskin (Spline Sans / JetBrains Mono)
-- Grouped dropdown navigation: Chat · Configuration · Statistics & Details · Tools
-- Collapsible sidebar connection cards with live status dots
-- **Compliance** moved to **Statistics & Details** (was Configuration)
-- **Compliance scope selector**: Current Issues / By Application / By Asset Group
-- **Export Report as HTML**: downloads a self-contained, printable compliance report
-- Integrations sidebar: Jira, ServiceNow, SOAR, CI/CD (token auth, optional CORS proxy)
-- MCP Chain orchestrator: commit+PR → AppScan status → Jira → ServiceNow → SOAR → Slack
-- Proxy updated: added `Access-Control-Allow-Private-Network: true` header (fixes Chrome 98+ CORS block from `file://`)
-- `appscan360_mcp_proxy.py` and `appscan360-issues.json` co-located in this folder
-
-### v2.1.0 (2026-06-30)
-
-- Grouped tab navigation (Configuration / Statistics & Details / Tools)
-- Compliance module: per-issue, per-application, per-standard violation mapping
-- AppScan Compliance Targets multi-select (OWASP, CWE, PCI, NIST, ISO, regulatory)
-- Inline compliance blocks on Issues, Applications tabs and issue detail modal
-
-### v2.0.0 (2026-06-30)
-
-- Source Control sidebar (GitHub / GitLab / Bitbucket / Azure DevOps / Local)
-- Auto-Fix Workflow tab with 5-stage AI harness (triage → validate → plan → in-context → in-code)
-- Human approval gate + branch + PR/MR creation
 
 ---
 
