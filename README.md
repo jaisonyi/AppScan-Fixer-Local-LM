@@ -22,7 +22,9 @@ Source code and findings never leave your machine.
 
 ```bash
 ollama pull mistral          # ~5 GB — recommended starting point
-# OR for deeper code analysis (GPU recommended):
+ollama pull gemma4:26b       # Google Gemma 4 26B — good general + code analysis
+ollama pull gemma4:31b       # Google Gemma 4 31B — deeper reasoning (GPU recommended)
+# OR for best code analysis (GPU recommended):
 ollama pull qwen3-coder:30b
 ```
 
@@ -89,7 +91,9 @@ Keep this terminal open while using the Fixer. To stop it, press **Ctrl+C**.
 open -a Ollama          # macOS — or it may already be running in the menu bar
 
 # Pull a model if you haven't yet (one-time)
-ollama pull mistral                  # ~5 GB — recommended
+ollama pull mistral                  # ~5 GB — recommended starting point
+ollama pull gemma4:26b               # Google Gemma 4 26B — good general + code analysis
+ollama pull gemma4:31b               # Google Gemma 4 31B — deeper reasoning (GPU recommended)
 # OR for best code analysis (GPU recommended):
 ollama pull qwen3-coder:30b
 ```
