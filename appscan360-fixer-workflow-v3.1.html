@@ -10072,6 +10072,9 @@ ${content}
     lg('INFO', 'Integrations + MCP Chain ready (' + STEPS.filter(s => CHAIN.steps[s.id]).length + ' steps active)');
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  // Expose onclick targets to global scope (inline handlers resolve in window scope, not IIFE)
+  window.openAddMcpDialog = openAddMcpDialog;
+  window.removeCustomMcp  = removeCustomMcp;
 })();
 </script>
 <!-- ════════════════════════════════════════════════════════════════════════
