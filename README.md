@@ -1,6 +1,6 @@
 # AppScan360.ASoC · Fixer (v3)
 
-A single-file web application that connects **AppScan360** to a locally-running **Ollama** LLM
+A single-file web application that connects **AppScan360/AppScan on Cloud** to a locally-running **Ollama** LLM
 for privacy-preserving AI vulnerability analysis, compliance mapping, and automated remediation.
 Source code and findings never leave your machine.
 
