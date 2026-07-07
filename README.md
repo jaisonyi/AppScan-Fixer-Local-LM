@@ -4,8 +4,8 @@ A single-file web application that connects **AppScan360/AppScan on Cloud** to a
 for privacy-preserving AI vulnerability analysis, compliance mapping, and automated remediation.
 Source code and findings never leave your machine.
 
-> **File in use:** `appscan360-fixer-workflow-v3.1.html`  
-> `appscan360-fixer-workflow-v3.html` (v3.0) and `appscan360-fixer-workflow.html` (v2.1, dark theme) are kept for rollback only.
+> **File in use:** `appscan360-fixer-workflow-v3.3.html`  
+> `appscan360-fixer-workflow-v3.1.html` (v3.1) is kept for rollback. `appscan360-fixer-workflow-v3.html` (v3.0) and `appscan360-fixer-workflow.html` (v2.1, dark theme) are legacy only.
 
 ---
 
@@ -52,9 +52,10 @@ Everything in the Fixer is stored in **browser `localStorage`** — it does **no
 
 | File | Purpose |
 |---|---|
-| `appscan360-fixer-workflow-v3.1.html` | **The application** — open this in Chrome or Edge |
+| `appscan360-fixer-workflow-v3.3.html` | **The application** — open this in Chrome or Edge |
 | `appscan360_mcp_proxy.py` | **Required** — local relay that forwards MCP calls and strips self-signed TLS errors; also handles CORS so the page can talk to `127.0.0.1` |
 | `appscan360-issues.json` | Sample issues for offline testing / import |
+| `appscan360-fixer-workflow-v3.1.html` | v3.1 — preserved for rollback |
 | `appscan360-fixer-workflow-v3.html` | v3.0 — preserved for rollback |
 | `appscan360-fixer-workflow.html` | v2.1 (dark theme) — preserved for rollback |
 | `README.md` | This file |
@@ -108,7 +109,7 @@ curl http://localhost:11434/api/tags
 ### Step 3 — Open the Fixer
 
 ```bash
-open ~/Downloads/Fixers/appscan360-fixer-workflow-v3.1.html
+open ~/Downloads/Fixers/appscan360-fixer-workflow-v3.3.html
 ```
 
 Or double-click the file in Finder. Use **Chrome** or **Edge** — Safari has limited File System
@@ -148,7 +149,7 @@ The tab bar is organized into four groups:
 | *(standalone)* | **Chat & Analysis** |
 | **Configuration** | Repository · Remediation Workspace |
 | **Statistics & Details** | Asset Groups · Applications · Scans · Issues · **Compliance** |
-| **Tools** | Auto-Fix Workflow · Mapping History · Integration Code · Event Log |
+| **Tools** | Auto-Fix Workflow · **Triage & Fix** · Mapping History · Integration Code · Event Log |
 
 ---
 
@@ -164,13 +165,45 @@ Examples:
 - *"What are the top 5 CWEs in my last scan?"*
 - *"Generate a risk report for application Knox_AltoroJ"*
 
-### Applications / Asset Groups / Scans / Issues
+### Asset Groups
+
+Displays all asset groups from AppScan360. In v3.3, the tab performs a **direct `get_asset_groups` MCP call** to retrieve the authoritative group list — groups with no locally-visible applications (e.g. empty groups or access-scoped groups) are now shown. App-derived issue counts are merged in where available.
+
+### Applications / Scans / Issues
 
 Browse AppScan360 data. Issues support scope-filtered loading:
 
 1. Go to **Issues** → select Asset Group → Application → Scan (narrowest scope = fastest load).
 2. Click **Load Issues**.
 3. Filter by severity or text search, or **Export JSON**.
+4. Use the **checkboxes** to select issues for Triage & Fix (checking does not open the detail modal).
+5. Click a row (not the checkbox) to open the issue detail modal and **Ask AI for remediation**.
+
+### Triage & Fix *(v3.3 — Tools group)*
+
+Batch AI triage and remediation planning across selected issues using a local Ollama model.
+
+**Workflow:**
+
+1. In the **Issues** tab, tick the checkboxes next to the issues you want to analyze.
+2. Click **▶ Triage & Fix** in the toolbar (or use **Select all**).
+3. Switch to the **Triage & Fix** tab to watch results stream in real time.
+4. Each issue runs two sequential LLM calls:
+   - **Call 1 — Triage:** Returns a JSON object with `priority`, `exploitability`, `businessImpact`, `effort`, and `triageSummary`.
+   - **Call 2 — Fix:** Returns a structured markdown remediation plan (`## Root Cause`, `## Fix`, `## Verification`).
+5. Click **▶ Details** on any row to expand the full triage summary and fix plan.
+6. Use **⬇ Export HTML** to download all results as a self-contained report.
+7. Use **→ Send to Auto-Fix** to push selected issues into the Auto-Fix Workflow pipeline.
+
+**Model recommendations for Triage & Fix:**
+
+| Model | Notes |
+|---|---|
+| `gemma4:26b` | Good balance — handles thinking-model JSON correctly |
+| `qwen3-coder:30b` | Best for code-specific fix plans (GPU recommended) |
+| `mistral` | Fastest — good for triage on CPU-only machines |
+
+> **Tip:** The Triage & Fix tab caps context window per call (16k for triage, 32k for fix) regardless of the sidebar `num_ctx` setting, to prevent OOM crashes during sequential analysis.
 
 ### Compliance
 
@@ -272,6 +305,9 @@ Configure providers in the sidebar **Integrations** cards (persisted to `localSt
 | "Cannot reach Ollama" | Ollama not running | `open -a Ollama` (macOS) / `sudo systemctl start ollama` (Linux) |
 | Model dropdown empty | No models pulled | `ollama pull mistral` then **Refresh Models** |
 | Very slow responses | Model too large for available RAM | Switch to `mistral` or `orca-mini` |
+| "No valid JSON in model response" | Thinking model (gemma4) put JSON inside `<think>` block | v3.3 handles this automatically — ensure you are on `v3.3.html` |
+| "to/to/to/to/…" repetition in triage summary | Token loop from very low temperature + no repeat penalty | v3.3 adds `repeat_penalty: 1.15` automatically — ensure you are on `v3.3.html` |
+| "Ollama HTTP 502" during batch triage | Ollama OOM-crashed from a previous large-context call | v3.3 waits 4 s and retries automatically; if it persists, reduce `num_ctx` in the sidebar |
 
 ### Compliance
 
@@ -301,4 +337,4 @@ When reporting a problem, collect:
 
 ---
 
-*Last updated: 2026-07-01*
+*Last updated: 2026-07-07*
