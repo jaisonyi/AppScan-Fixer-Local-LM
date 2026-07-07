@@ -10560,15 +10560,19 @@ Specific, actionable fix for this endpoint and parameter. Include code-level gui
     // passing the user's 256k sidebar value to every sequential call causes OOM.
     const numCtx = Math.min(trGetNumCtx(), numCtxMax);
 
-    const body = { model, messages: [{ role: 'user', content: prompt }], stream: false, options: { num_ctx: numCtx, temperature } };
+    const body = { model, messages: [{ role: 'user', content: prompt }], stream: false, options: { num_ctx: numCtx, temperature, repeat_penalty: 1.15 } };
     if (json) body.format = 'json';
 
     // Extract text from Ollama response, handling thinking-model layout.
-    // gemma4 / deepseek-r1 put reasoning in message.thinking; the final answer
-    // may have inline <think>…</think> tags in message.content — strip them.
+    // gemma4 / deepseek-r1 emit reasoning in message.thinking or inline as
+    // <think>…</think> blocks in message.content. Strip those to get the answer.
+    // If stripping leaves nothing (JSON was inside the think block), fall back to
+    // the raw content so extractJson can still find the JSON via backward search.
     function extractContent(data) {
-      const raw = (data.message && (data.message.content || data.message.thinking)) || data.response || '';
-      return String(raw).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      const content = String((data.message && data.message.content) || data.response || '');
+      const thinking = String((data.message && data.message.thinking) || '');
+      const stripped = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      return stripped || content || thinking;
     }
 
     // JSON extraction: search backward so we land on the last (actual) JSON
@@ -10705,7 +10709,7 @@ Target audience: developer who will implement the fix immediately.`;
       TR.results[id] = { status: 'running', step: 'triage', triage: null, fix: null, error: null };
       renderTriagePanel();
       try {
-        const triage = await trAsk(trTriagePrompt(issue), { json: true, temperature: 0.05, numCtxMax: 16384 });
+        const triage = await trAsk(trTriagePrompt(issue), { json: true, temperature: 0.1, numCtxMax: 16384 });
         if (TR.aborted) break;
         TR.results[id] = { ...TR.results[id], triage, step: 'fix' };
         renderTriagePanel();
