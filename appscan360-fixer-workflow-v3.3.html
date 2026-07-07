@@ -10497,17 +10497,46 @@ Specific, actionable fix for this endpoint and parameter. Include code-level gui
   }
 
   // ── Ollama caller ─────────────────────────────────────────────────────────
-  async function trAsk(prompt, { json = false, temperature = 0.1, maxRetries = 1 } = {}) {
+  // numCtxMax: hard cap per call-site — prevents sidebar's 256k from causing OOM
+  // on sequential requests with a 26B model.
+  async function trAsk(prompt, { json = false, temperature = 0.1, maxRetries = 1, numCtxMax = 16384 } = {}) {
     const model = trGetModel();
     const ollamaUrl = trGetOllama();
     if (!model) throw new Error('Select an Ollama model in the sidebar first');
 
-    let numCtx = trGetNumCtx();
-    if (/gemma4|qwen.*coder.*3[01]\d*b|llama.*70b/i.test(model)) numCtx = Math.max(numCtx, 131072);
-    else if (/qwen.*coder|codestral|deepseek.*coder/i.test(model))  numCtx = Math.max(numCtx, 32768);
+    // Cap num_ctx at the per-call maximum — triage/fix prompts are short;
+    // passing the user's 256k sidebar value to every sequential call causes OOM.
+    const numCtx = Math.min(trGetNumCtx(), numCtxMax);
 
     const body = { model, messages: [{ role: 'user', content: prompt }], stream: false, options: { num_ctx: numCtx, temperature } };
     if (json) body.format = 'json';
+
+    // Extract text from Ollama response, handling thinking-model layout.
+    // gemma4 / deepseek-r1 put reasoning in message.thinking; the final answer
+    // may have inline <think>…</think> tags in message.content — strip them.
+    function extractContent(data) {
+      const raw = (data.message && (data.message.content || data.message.thinking)) || data.response || '';
+      return String(raw).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    }
+
+    // JSON extraction: search backward so we land on the last (actual) JSON
+    // object in the string, skipping any reasoning text before it.
+    function extractJson(text) {
+      let t = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      try { return JSON.parse(t); } catch { /* fall through */ }
+      const b = t.lastIndexOf('}');
+      if (b < 0) return null;
+      // Walk back from last '}' to find the matching outermost '{'
+      let depth = 0;
+      for (let i = b; i >= 0; i--) {
+        if (t[i] === '}') depth++;
+        else if (t[i] === '{') { if (--depth === 0) { try { return JSON.parse(t.slice(i, b + 1)); } catch { break; } } }
+      }
+      // Fallback: first '{' to last '}'
+      const a = t.indexOf('{');
+      if (a >= 0 && b > a) try { return JSON.parse(t.slice(a, b + 1)); } catch { /* noop */ }
+      return null;
+    }
 
     let lastErr;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -10517,21 +10546,26 @@ Specific, actionable fix for this endpoint and parameter. Include code-level gui
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Ollama-Upstream': ollamaUrl },
           body: JSON.stringify(body)
         });
-        if (!res.ok) throw new Error('Ollama HTTP ' + res.status);
+        if (!res.ok) {
+          // 502 means Ollama crashed (likely OOM from a previous call) — wait longer
+          const retryDelay = res.status === 502 ? 4000 : 1000;
+          throw Object.assign(new Error('Ollama HTTP ' + res.status), { _retryDelay: retryDelay });
+        }
         const data = await res.json();
-        const content = (data.message && data.message.content) || data.response || '';
-        if (!json) return String(content).trim();
-        let t = String(content).trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/i,'').trim();
-        try { return JSON.parse(t); } catch { /* fall through */ }
-        const a = t.indexOf('{'), b = t.lastIndexOf('}');
-        if (a >= 0 && b > a) return JSON.parse(t.slice(a, b + 1));
+        const content = extractContent(data);
+        if (!json) return content;
+        const parsed = extractJson(content);
+        if (parsed) return parsed;
         if (attempt < maxRetries) {
           body.messages.push({ role: 'assistant', content: content.slice(0, 2000) },
                              { role: 'user', content: 'Return ONLY a valid JSON object — no prose, no code fences.' });
           continue;
         }
         throw new Error('No valid JSON in model response');
-      } catch (e) { lastErr = e; if (attempt < maxRetries) await new Promise(r => setTimeout(r, 1000)); }
+      } catch (e) {
+        lastErr = e;
+        if (attempt < maxRetries) await new Promise(r => setTimeout(r, e._retryDelay || 1000));
+      }
     }
     throw lastErr;
   }
@@ -10619,13 +10653,13 @@ Target audience: developer who will implement the fix immediately.`;
       TR.results[id] = { status: 'running', step: 'triage', triage: null, fix: null, error: null };
       renderTriagePanel();
       try {
-        const triage = await trAsk(trTriagePrompt(issue), { json: true, temperature: 0.05 });
+        const triage = await trAsk(trTriagePrompt(issue), { json: true, temperature: 0.05, numCtxMax: 16384 });
         if (TR.aborted) break;
         TR.results[id] = { ...TR.results[id], triage, step: 'fix' };
         renderTriagePanel();
 
         const code = await trGetCode(issue);
-        const fix  = await trAsk(trFixPrompt(issue, triage, code), { temperature: 0.15 });
+        const fix  = await trAsk(trFixPrompt(issue, triage, code), { temperature: 0.15, numCtxMax: 32768 });
         TR.results[id] = { ...TR.results[id], fix, status: 'done', step: null };
       } catch (e) {
         TR.results[id] = { ...TR.results[id], status: 'error', error: e.message || String(e), step: null };
