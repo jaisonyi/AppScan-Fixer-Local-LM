@@ -3183,32 +3183,65 @@ function renderApplications(apps) {
     </table>`
 }
 
-function loadAssetGroups() {
-  if (!state.applications.length) {
-    loadApplications()
-    return
+function normalizeAssetGroupRecord(ag) {
+  return {
+    id: pickField(ag, 'id', 'Id', 'assetGroupId', 'AssetGroupId', 'groupId', 'GroupId') || '-',
+    name: pickField(ag, 'name', 'Name', 'assetGroupName', 'AssetGroupName', 'groupName', 'GroupName') || 'Unnamed',
+    apps: nonNegativeNumber(pickField(ag, 'numberOfApps', 'NumberOfApps', 'appCount', 'AppCount', 'appsCount', 'AppsCount')),
+    issues: nonNegativeNumber(pickField(ag, 'numberOfIssues', 'NumberOfIssues', 'totalIssues', 'TotalIssues', 'issueCount', 'IssueCount')),
+    critical: nonNegativeNumber(pickField(ag, 'numberOfCritical', 'NumberOfCritical', 'criticalCount', 'CriticalCount', 'critical', 'Critical')),
+    high: nonNegativeNumber(pickField(ag, 'numberOfHigh', 'NumberOfHigh', 'highCount', 'HighCount', 'high', 'High')),
+    scans: nonNegativeNumber(pickField(ag, 'numberOfScans', 'NumberOfScans', 'totalScans', 'TotalScans', 'scanCount', 'ScanCount')),
   }
-  renderAssetGroups(state.applications)
 }
 
-function renderAssetGroups(apps) {
-  const el = document.getElementById('assetGroupsContent')
-  if (!apps.length) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-icon">◫</div><div class="empty-title">No asset groups to show</div></div>'
-    return
+async function fetchAssetGroupsFromMcp(url, id, sec) {
+  const toolName = resolveMcpToolName(['get_asset_groups', 'list_asset_groups', 'getAssetGroups', 'listAssetGroups', 'mcp_appscan_mcp_s_get_asset_groups'])
+  if (!toolName) throw new Error('No asset groups tool found in MCP server')
+  const paramAttempts = [{ top: 200, count: true }, { $top: 200, $count: true }, {}]
+  let lastError = null
+  for (const params of paramAttempts) {
+    try {
+      const data = await mcpToolCall(url, id, sec, toolName, params)
+      const records = extractRecords(data)
+      if (records.length) return records.map(normalizeAssetGroupRecord)
+    } catch (e) {
+      lastError = e
+    }
   }
+  if (lastError) throw lastError
+  return []
+}
 
-  const groups = Object.values(apps.reduce((acc, app) => {
+async function loadAssetGroups() {
+  if (!state.applications.length) {
+    await loadApplications()
+    return  // loadApplications already calls renderAssetGroups
+  }
+  const url = getMcpRelayUrl()
+  const id  = document.getElementById('apiKeyId').value.trim()
+  const sec = document.getElementById('apiKeySecret').value.trim()
+  let directGroups = null
+  try {
+    directGroups = await fetchAssetGroupsFromMcp(url, id, sec)
+    log('INFO', `Loaded ${directGroups.length} asset groups from MCP`)
+  } catch (e) {
+    log('WARN', `Asset groups direct fetch failed, using app-derived: ${e.message}`)
+  }
+  renderAssetGroups(state.applications, directGroups)
+}
+
+function renderAssetGroups(apps, directGroups) {
+  const el = document.getElementById('assetGroupsContent')
+
+  // Build app-derived group map for counts
+  const appDerived = apps.reduce((acc, app) => {
     const key = app.assetGroupId || app.assetGroupName || 'ungrouped'
     if (!acc[key]) {
       acc[key] = {
         id: app.assetGroupId || '-',
         name: app.assetGroupName || 'Ungrouped',
-        apps: 0,
-        issues: 0,
-        critical: 0,
-        high: 0,
-        scans: 0,
+        apps: 0, issues: 0, critical: 0, high: 0, scans: 0,
       }
     }
     acc[key].apps += 1
@@ -3217,15 +3250,34 @@ function renderAssetGroups(apps) {
     acc[key].high += app.high || 0
     acc[key].scans += app.totalScans || 0
     return acc
-  }, {}))
-  const sortedGroups = sortArray(groups, tableSort.assetGroups.col, tableSort.assetGroups.dir, ['apps','issues','critical','high','scans'], [], [])
+  }, {})
 
+  let groups
+  if (directGroups && directGroups.length) {
+    // Authoritative list from API — merge in app-derived counts where available
+    groups = directGroups.map(dg => {
+      const appKey = dg.id !== '-' ? Object.keys(appDerived).find(k => k === dg.id) : null
+      const appKey2 = !appKey ? Object.keys(appDerived).find(k => appDerived[k].name === dg.name) : appKey
+      const ad = appDerived[appKey2]
+      return ad ? { ...dg, apps: ad.apps, issues: ad.issues, critical: ad.critical, high: ad.high, scans: ad.scans } : dg
+    })
+  } else {
+    groups = Object.values(appDerived)
+  }
+
+  if (!groups.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">◫</div><div class="empty-title">No asset groups to show</div></div>'
+    return
+  }
+
+  const sortedGroups = sortArray(groups, tableSort.assetGroups.col, tableSort.assetGroups.dir, ['apps','issues','critical','high','scans'], [], [])
   const limitedGroups = sortedGroups.slice(0, FETCH_LIMITS.assetGroups)
   const truncated = groups.length > limitedGroups.length
+  const source = directGroups ? `<span style="font-size:11px;color:var(--text3);margin-left:8px">(from API)</span>` : ''
 
   el.innerHTML = `
     <div class="metrics-row">
-      <div class="metric-card"><div class="metric-label">Asset Groups</div><div class="metric-value">${limitedGroups.length}</div></div>
+      <div class="metric-card"><div class="metric-label">Asset Groups${source}</div><div class="metric-value">${limitedGroups.length}</div></div>
       <div class="metric-card"><div class="metric-label">Applications</div><div class="metric-value">${apps.length}</div></div>
       <div class="metric-card"><div class="metric-label">Critical</div><div class="metric-value danger">${limitedGroups.reduce((sum, g) => sum + g.critical, 0)}</div></div>
       <div class="metric-card"><div class="metric-label">High</div><div class="metric-value warning">${limitedGroups.reduce((sum, g) => sum + g.high, 0)}</div></div>
