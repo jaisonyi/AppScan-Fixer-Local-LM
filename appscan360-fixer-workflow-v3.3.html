@@ -10843,6 +10843,7 @@ Target audience: developer who will implement the fix immediately.`;
       chk.checked = trSelectedIds.has(id);
       chk.dataset.trId = id;
       chk.addEventListener('change', () => trToggle(id, chk.checked));
+      td.addEventListener('click', e => e.stopPropagation());
       td.appendChild(chk);
       row.insertBefore(td, row.firstChild);
     });
