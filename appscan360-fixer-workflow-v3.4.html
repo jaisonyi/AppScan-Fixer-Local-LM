@@ -1933,7 +1933,13 @@ async function callLLM(messages, {
     throw new Error(errData.error || `LLM HTTP ${res.status}`)
   }
   const data = await res.json()
-  return String((data.message && data.message.content) || data.response || '')
+  const content = String((data.message && data.message.content) || data.response || '')
+  // Auto-update status dot on first successful call (no "Test Connection" required)
+  if (!state.llmConnected) {
+    state.llmConnected = true
+    setDot('llm', 'connected', `LLM: ${providerLabel(provider)} \u00b7 ${model}`)
+  }
+  return content
 }
 
 // ── LLM provider UI handlers (v3.4) ────────────────────────────────
@@ -1996,7 +2002,7 @@ async function testLLMConnection() {
   const model = getLLMModel()
   if (!model)  { toast('Enter a model name first', 'error'); return }
   saveLLMSettings()
-  setDot('llm', 'connecting', `LLM: testing ${providerLabel(provider)}…`)
+  setDot('llm', 'loading', `LLM: testing ${providerLabel(provider)}…`)
   log('INFO', `Testing ${providerLabel(provider)} / ${model}…`)
   try {
     const reply = await callLLM([{ role: 'user', content: 'Reply with exactly: ok' }], { temperature: 0.0, numCtx: 50 })
