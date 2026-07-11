@@ -884,7 +884,7 @@
       <div class="config-row">
         <label>Model</label>
         <!-- Ollama: dropdown populated by Refresh -->
-        <select id="modelSelect">
+        <select id="modelSelect" onchange="onLLMModelChange()">
           <option value="mistral">mistral</option>
           <option value="gemma4:26b">gemma4:26b</option>
           <option value="gemma4:31b">gemma4:31b</option>
@@ -894,7 +894,7 @@
           <option value="orca-mini">orca-mini</option>
         </select>
         <!-- Commercial providers: text input with datalist -->
-        <input id="llmModel" type="text" list="llmModelList" placeholder="e.g. gpt-4o" style="display:none;margin-top:4px;width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--bg2);color:var(--text1)" oninput="saveLLMSettings()" />
+        <input id="llmModel" type="text" list="llmModelList" placeholder="e.g. gpt-4o" style="display:none;margin-top:4px;width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--bg2);color:var(--text1)" oninput="onLLMModelChange();saveLLMSettings()" />
         <datalist id="llmModelList"></datalist>
       </div>
       <div class="config-row">
@@ -902,9 +902,9 @@
         <input id="ctxTokens" type="number" value="8192" min="512" step="512" />
       </div>
       <div class="hint" style="margin-top:2px">AppScan Compliance Targets moved to <b>Statistics &amp; Details → Compliance</b> tab.</div>
-      <div id="ollamaModelHint" class="hint" style="margin-top:4px">Pull a model: <code>ollama pull mistral</code> — then click <b>Refresh Models</b>.</div>
+      <div id="ollamaModelHint" class="hint" style="margin-top:4px">Select a model then click <b>Connect</b>. To add more: <code>ollama pull mistral</code>.</div>
       <div class="btn-row">
-        <button class="btn" id="llmConnectBtn" onclick="testLLMConnection()">Refresh Models</button>
+        <button class="btn primary" id="llmConnectBtn" onclick="testLLMConnection()">Connect</button>
       </div>
     </div>
 
@@ -1964,7 +1964,7 @@ function onLLMProviderChange() {
   document.getElementById('modelSelect').style.display    = isOllama ? '' : 'none'
   document.getElementById('llmModel').style.display       = isOllama ? 'none' : ''
   const btn = document.getElementById('llmConnectBtn')
-  if (btn) btn.textContent = isOllama ? 'Refresh Models' : 'Test Connection'
+  if (btn) btn.textContent = 'Connect'
   // Restore per-provider saved values
   if (isOllama) {
     // If the modelSelect has no real models (only placeholder/disabled), repopulate defaults
@@ -2022,7 +2022,7 @@ async function testLLMConnection() {
   const model = getLLMModel()
   if (!model)  { toast('Enter a model name first', 'error'); return }
   saveLLMSettings()
-  setDot('llm', 'loading', `LLM: testing ${providerLabel(provider)}…`)
+  setDot('llm', 'loading', `LLM: connecting to ${providerLabel(provider)}…`)
   log('INFO', `Testing ${providerLabel(provider)} / ${model}…`)
   try {
     const reply = await callLLM([{ role: 'user', content: 'Reply with exactly: ok' }], { temperature: 0.0, numCtx: 50 })
@@ -2277,6 +2277,15 @@ function selectTool(name) {
   document.getElementById('chatInput').focus()
 }
 
+// Called when the model selection/input changes — resets the connection indicator
+// so the user knows they need to click Connect again to verify the new model.
+function onLLMModelChange() {
+  if (!state.llmConnected) return
+  state.llmConnected = false
+  const provider = getLLMProvider()
+  setDot('llm', 'disconnected', `LLM: ${providerLabel(provider)} — click Connect`)
+}
+
 // ── Ollama ─────────────────────────────────────────────────────────
 function populateOllamaModelSelect(models, isInstalled) {
   const sel = document.getElementById('modelSelect')
@@ -2308,10 +2317,16 @@ async function fetchOllamaModels() {
     const models = (data.models||[]).map(m=>m.name)
     if (!models.length) throw new Error('No models installed — run: ollama pull mistral')
     populateOllamaModelSelect(models, true)
+    // After populating, check if the currently selected model is in the installed list
+    const selectedModel = getLLMModel()
+    const modelLabel = selectedModel
+      ? (models.includes(selectedModel) ? selectedModel : `${selectedModel} ⚠️ not installed`)
+      : `${models.length} models`
     state.ollamaConnected = true
-    setDot('llm', 'connected', `LLM: Ollama · ${models.length} models`)
+    state.llmConnected = true
+    setDot('llm', 'connected', `LLM: Ollama · ${modelLabel}`)
     log('INFO', `Ollama models: ${models.join(', ')}`)
-    toast(`${models.length} Ollama model(s) found`, 'success')
+    toast(`Ollama connected — ${models.length} model(s) found`, 'success')
   } catch(e) {
     setDot('llm', 'error', 'LLM: Ollama unreachable')
     log('ERROR', `Ollama error: ${e.message}`)
