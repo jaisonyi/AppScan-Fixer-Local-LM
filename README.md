@@ -4,8 +4,8 @@ A single-file web application that connects **AppScan360/AppScan on Cloud** to a
 for privacy-preserving AI vulnerability analysis, compliance mapping, and automated remediation.
 Source code and findings never leave your machine.
 
-> **File in use:** `appscan360-fixer-workflow-v3.3.html`  
-> `appscan360-fixer-workflow-v3.1.html` (v3.1) is kept for rollback. `appscan360-fixer-workflow-v3.html` (v3.0) and `appscan360-fixer-workflow.html` (v2.1, dark theme) are legacy only.
+> **File in use:** `appscan360-fixer-workflow-v3.4.html`  
+> `appscan360-fixer-workflow-v3.3.html` (v3.3) is kept for rollback. `appscan360-fixer-workflow-v3.1.html` (v3.1) and `appscan360-fixer-workflow-v3.html` (v3.0) are legacy only.
 
 ---
 
@@ -52,7 +52,8 @@ Everything in the Fixer is stored in **browser `localStorage`** — it does **no
 
 | File | Purpose |
 |---|---|
-| `appscan360-fixer-workflow-v3.3.html` | **The application** — open this in Chrome or Edge |
+| `appscan360-fixer-workflow-v3.4.html` | **The application (latest)** — v3.4 multi-provider LLM |
+| `appscan360-fixer-workflow-v3.3.html` | v3.3 — preserved for rollback |
 | `appscan360_mcp_proxy.py` | **Required** — local relay that forwards MCP calls and strips self-signed TLS errors; also handles CORS so the page can talk to `127.0.0.1` |
 | `appscan360-issues.json` | Sample issues for offline testing / import |
 | `appscan360-fixer-workflow-v3.1.html` | v3.1 — preserved for rollback |
@@ -337,4 +338,4 @@ When reporting a problem, collect:
 
 ---
 
-*Last updated: 2026-07-07*
+*Last updated: 2026-07-11*
