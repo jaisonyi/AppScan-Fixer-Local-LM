@@ -9830,10 +9830,18 @@ ${content}
       dot: () => (state.mcpConnected ? 'connected' : ''),
       sub: () => { try { return state.mcpConnected ? ((document.getElementById('mcpUrl').value || '').replace(/^https?:\/\//, '').slice(0, 30) + ' · connected') : 'Not connected'; } catch { return 'Not connected'; } }
     },
-    'Ollama': {
+    'LLM Provider': {
       collapsed: true,
-      dot: () => ((document.getElementById('modelSelect') || {}).value ? 'connected' : ''),
-      sub: () => { const m = (document.getElementById('modelSelect') || {}).value; return m ? (m + ' · ready') : 'Select a model'; }
+      dot: () => state.llmConnected ? 'connected' : '',
+      sub: () => {
+        try {
+          const p = typeof getLLMProvider === 'function' ? getLLMProvider() : (state.llmProvider || 'ollama');
+          const m = typeof getLLMModel    === 'function' ? getLLMModel()    : '';
+          const pl = typeof providerLabel === 'function' ? providerLabel(p) : p;
+          if (state.llmConnected) return pl + (m ? ' · ' + m : ' · ready');
+          return pl + ' — click Connect';
+        } catch { return 'Not connected'; }
+      }
     },
     'Source Control': {
       collapsed: true,
@@ -10049,7 +10057,16 @@ ${content}
       const key = card.dataset.int; const ok = INTS[key].ready(FXI[key]);
       const dot = card.querySelector('.dot'); const sub = card.querySelector('.ti span');
       dot.className = 'dot' + (ok ? ' connected' : '');
-      if (sub) sub.textContent = ok ? 'configured' : 'not configured';
+      if (sub) {
+        if (ok) {
+          const c = FXI[key];
+          const host = (c.baseUrl || c.instanceUrl || c.url || c.relayUrl || '')
+            .replace(/^https?:\/\//, '').split('/')[0].slice(0, 28);
+          sub.textContent = host ? 'configured · ' + host : 'configured';
+        } else {
+          sub.textContent = 'not configured';
+        }
+      }
     });
   }
   async function testIntegration(key) {
