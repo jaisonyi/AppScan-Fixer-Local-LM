@@ -898,7 +898,7 @@
         <datalist id="llmModelList"></datalist>
       </div>
       <div class="config-row">
-        <label>Max Tokens</label>
+        <label>Max Tokens <span id="ctxTokensMax" style="font-weight:400;color:var(--sb-tx3);font-size:10px"></span></label>
         <input id="ctxTokens" type="number" value="8192" min="512" step="512" />
       </div>
       <div class="hint" style="margin-top:2px">AppScan Compliance Targets moved to <b>Statistics &amp; Details → Compliance</b> tab.</div>
@@ -1888,6 +1888,25 @@ const OLLAMA_DEFAULT_MODELS = [
   'llama3.1:8b', 'deepseek-r1:8b', 'orca-mini',
 ]
 
+// Hard output-token ceilings enforced by each provider's API.
+// The proxy forwards whatever we send, so we must cap here before sending.
+const MAX_TOKENS_PER_PROVIDER = {
+  ollama:  131072,  // model-dependent; Ollama ignores max_tokens anyway
+  openai:  16384,   // gpt-4o / gpt-4-turbo safe default
+  gemini:  8192,    // gemini-2.0-flash / 1.5-pro
+  claude:  64000,   // claude-sonnet-4-5 / haiku-3-5 ceiling
+  copilot: 4096,    // GitHub Copilot API
+}
+
+// Sensible default token values to pre-fill when switching providers.
+const DEFAULT_TOKENS_PER_PROVIDER = {
+  ollama:  8192,
+  openai:  4096,
+  gemini:  4096,
+  claude:  8192,
+  copilot: 4096,
+}
+
 // ── Universal LLM caller (v3.4) ────────────────────────────────────
 // Dispatches to Ollama (local) or a commercial provider via /llm/chat relay.
 // Returns plain text.  Callers handle JSON parsing + retry.
@@ -1930,7 +1949,10 @@ async function callLLM(messages, {
   // ── Commercial provider path ────────────────────────────────────
   const apiKey = getLLMApiKey()
   if (!apiKey) throw new Error(`Enter your ${providerLabel(provider)} API key in the LLM Provider sidebar`)
-  const res = await fetch('http://127.0.0.1:8765/llm/chat', {
+  // Enforce the provider's hard output-token ceiling so we never send a value
+  // that the API will reject (e.g. Claude max 64 000, Gemini max 8 192).
+  const providerCap = MAX_TOKENS_PER_PROVIDER[provider] || 8192
+  const safeTok = Math.min(ctx, providerCap)
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1938,7 +1960,7 @@ async function callLLM(messages, {
       'X-LLM-Provider': provider,
       'X-LLM-API-Key': apiKey,
     },
-    body: JSON.stringify({ model, messages, temperature, max_tokens: ctx, json_mode: json })
+    body: JSON.stringify({ model, messages, temperature, max_tokens: safeTok, json_mode: json })
   })
   if (!res.ok) {
     const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
@@ -1982,6 +2004,18 @@ function onLLMProviderChange() {
     state.llmConnected = false
   }
   setDot('llm', 'disconnected', `LLM: ${providerLabel(provider)} — disconnected`)
+  // Reset Max Tokens to the provider's sensible default when switching
+  const ctxInput = document.getElementById('ctxTokens')
+  const maxHint  = document.getElementById('ctxTokensMax')
+  if (ctxInput) {
+    const currentVal = parseInt(ctxInput.value, 10) || 0
+    const cap = MAX_TOKENS_PER_PROVIDER[provider] || 131072
+    const def = DEFAULT_TOKENS_PER_PROVIDER[provider] || 8192
+    // Only reset if the current value exceeds the provider's hard ceiling
+    if (currentVal > cap) ctxInput.value = def
+    ctxInput.max = cap
+    if (maxHint) maxHint.textContent = provider !== 'ollama' ? `(max ${cap.toLocaleString()})` : ''
+  }
   saveLLMSettings()
 }
 
