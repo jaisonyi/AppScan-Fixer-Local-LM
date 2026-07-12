@@ -1953,6 +1953,7 @@ async function callLLM(messages, {
   // that the API will reject (e.g. Claude max 64 000, Gemini max 8 192).
   const providerCap = MAX_TOKENS_PER_PROVIDER[provider] || 8192
   const safeTok = Math.min(ctx, providerCap)
+  const res = await fetch(`${getOllamaRelayBaseUrl().replace(/\/ollama$/, '/llm')}/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

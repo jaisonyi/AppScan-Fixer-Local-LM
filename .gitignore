@@ -1,3 +1,5 @@
 *.zip
 *.bak
 .DS_Store
+relay.log
+__pycache__/
